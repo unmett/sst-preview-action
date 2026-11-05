@@ -325,6 +325,16 @@ remove_stage() {
       return 0
     fi
 
+    # AWS keeps Lambda@Edge replicas for 30+ minutes after CloudFront is
+    # deleted, so short retries cannot succeed. Leave the stage to reconcile.
+    if [[ "$remove_succeeded" == "false" ]] &&
+      grep -Fiq -- 'because it is a replicated function' "$remove_log"; then
+      rm -f -- "$remove_log"
+      echo "::warning::Lambda@Edge replicas for ${target_stage} are still being deleted by AWS; skipping further remove attempts"
+      error "Cannot remove ${target_stage} until its Lambda@Edge replicas are gone (often 30 minutes to several hours). Scheduled reconcile or a later manual remove will finish the cleanup."
+      return 1
+    fi
+
     if [[ "$lock_detected" == "true" &&
       "$unlock_on_lock" == "true" &&
       "$unlock_attempted" == "false" ]]; then
