@@ -331,7 +331,7 @@ remove_stage() {
       grep -Fiq -- 'because it is a replicated function' "$remove_log"; then
       rm -f -- "$remove_log"
       echo "::warning::Lambda@Edge replicas for ${target_stage} are still being deleted by AWS; skipping further remove attempts"
-      error "Cannot remove ${target_stage} until its Lambda@Edge replicas are gone (often 30 minutes to several hours). Scheduled reconcile or a later manual remove will finish the cleanup."
+      error "Cannot remove ${target_stage} until its Lambda@Edge replicas are gone (often 30 minutes to several hours). Run remove again later; scheduled reconcile also retries once the pull request has been closed for an hour."
       return 1
     fi
 

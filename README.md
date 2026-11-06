@@ -253,6 +253,11 @@ protection: preview
   : "oac-with-edge-signing",
 ```
 
+Previews that share the function depend on the stage that owns it: removing
+that stage while preview distributions still use the function fails with the
+same replicated-function error. The ARN pins one version, so update it when
+the owning stage publishes a new one.
+
 ## Inputs
 
 | Name                         | Required | Default | Description                                                |

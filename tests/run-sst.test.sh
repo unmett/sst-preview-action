@@ -634,6 +634,7 @@ test_remove_stops_retrying_on_lambda_edge_replicas() {
     fail "Lambda@Edge replica failure was retried"
   [[ "$(grep -Fc "sst unlock --stage pr-123" "${temp_dir}/calls")" -eq 0 ]] ||
     fail "Lambda@Edge replica failure unexpectedly unlocked the stage"
+  assert_contains "$output_file" "::warning::Lambda@Edge replicas for pr-123"
   assert_contains "$output_file" "::error::Cannot remove pr-123 until its Lambda@Edge replicas are gone"
 }
 
