@@ -150,6 +150,11 @@ failures never trigger an unlock. Keep the workflow concurrency group in place
 and do not run an independent SST operation against the same stage at the same
 time; SST cannot distinguish an active lock from a stale one.
 
+Set the job's `timeout-minutes` longer than one `sst remove` run multiplied by
+`remove-max-attempts`, plus `remove-retry-delay-seconds` between attempts. A
+remove that deletes CloudFront can take more than ten minutes, so a short job
+timeout cancels the job before a retry is reached.
+
 ## Reconciliation
 
 Reconciliation is a safety net for a close-event workflow that failed or was
@@ -222,6 +227,36 @@ that do not configure a named output keep the existing CloudFront URL fallback.
 object-version deletion permissions in the AWS role. Purging state is
 irreversible, so keep its condition restricted to canonical `pr-{number}`
 stages.
+
+### Lambda@Edge and close cleanup
+
+SST's `protection: "oac-with-edge-signing"` creates a Lambda@Edge function in
+`us-east-1` for every preview stage. After `sst remove` deletes the CloudFront
+distribution, AWS keeps the function's replicas for 30 minutes to several
+hours, and deleting the function fails with `... because it is a replicated
+function`. The action detects this error, stops retrying, and fails the run;
+the stage stays in SST state, so scheduled reconciliation or a later manual
+`remove` finishes the cleanup.
+
+To avoid the per-stage function, previews can share an existing signing
+function (SST 4.17.1 or newer). Pass its version-qualified ARN in `us-east-1`,
+for example the one created by the `dev` stage:
+
+```ts
+protection: preview
+  ? {
+      mode: "oac-with-edge-signing",
+      edgeFunction: {
+        arn: "arn:aws:lambda:us-east-1:123456789012:function:my-app-dev-FrontendEdgeFn-abc123:1",
+      },
+    }
+  : "oac-with-edge-signing",
+```
+
+Previews that share the function depend on the stage that owns it: removing
+that stage while preview distributions still use the function fails with the
+same replicated-function error. The ARN pins one version, so update it when
+the owning stage publishes a new one.
 
 ## Inputs
 

@@ -229,6 +229,13 @@ case "${TEST_SCENARIO}:$1:$2" in
     ;;
   remove-lock:sst:unlock)
     ;;
+  remove-edge-replica:sst:remove)
+    echo "InvalidParameterValueException: Lambda was unable to delete arn:aws:lambda:us-east-1:123456789012:function:app-pr-123-WebAppEdgeFn-abc:1 because it is a replicated function." >&2
+    exit 1
+    ;;
+  remove-edge-replica:sst:state)
+    printf 'Stages: dev\n        %s\n' "$5"
+    ;;
   unlock:sst:unlock)
     ;;
   state-unavailable:sst:remove)
@@ -611,6 +618,24 @@ test_remove_can_disable_automatic_unlock() {
     fail "removal retries changed when automatic unlock was disabled"
   [[ "$(grep -Fc "sst unlock --stage pr-123" "${temp_dir}/calls")" -eq 0 ]] ||
     fail "automatic unlock ran despite being disabled"
+}
+
+test_remove_stops_retrying_on_lambda_edge_replicas() {
+  local output_file
+  local temp_dir
+  temp_dir="$(make_temp_dir)"
+  output_file="${temp_dir}/output"
+
+  if INPUT_OPERATION=remove run_action "$temp_dir" remove-edge-replica >"$output_file" 2>&1; then
+    fail "Lambda@Edge replica failure unexpectedly succeeded"
+  fi
+
+  [[ "$(grep -Fc "sst remove --stage pr-123" "${temp_dir}/calls")" -eq 1 ]] ||
+    fail "Lambda@Edge replica failure was retried"
+  [[ "$(grep -Fc "sst unlock --stage pr-123" "${temp_dir}/calls")" -eq 0 ]] ||
+    fail "Lambda@Edge replica failure unexpectedly unlocked the stage"
+  assert_contains "$output_file" "::warning::Lambda@Edge replicas for pr-123"
+  assert_contains "$output_file" "::error::Cannot remove pr-123 until its Lambda@Edge replicas are gone"
 }
 
 test_verification_retries() {
@@ -1087,6 +1112,7 @@ test_missing_preview_url_emits_empty_output
 test_remove_retries
 test_remove_unlocks_a_stale_lock_before_retrying
 test_remove_can_disable_automatic_unlock
+test_remove_stops_retrying_on_lambda_edge_replicas
 test_verification_retries
 test_auto_closed_event_removes
 test_unlock_uses_explicit_pr_stage
